@@ -1,179 +1,217 @@
-This archive contains all scripts developed for this project, including the translation process, evaluation pipeline, and analysis process.
+# LLM-based Java-to-Python Code Translation
 
----
+MSc final project exploring whether Chain-of-Thought (CoT) prompting improves LLM-based code translation from Java to Python.
 
-# 1. Environment Setup
-Install all required Python packages:
+The project compares direct prompting, basic CoT prompting, and several CoT variants across local and API-based LLMs. It also includes an automated evaluation pipeline for syntax, functionality, semantic accuracy, readability, and Python style.
+
+## Project Focus
+
+LLMs can often generate code that looks plausible but fails to preserve logic, runtime behaviour, or coding conventions. This project studies that problem in Java-to-Python translation using Project CodeNet, with a focus on whether extra reasoning steps help or interfere with translation quality.
+
+The core finding is that CoT prompting is not universally better. It can improve translation quality for models that benefit from external reasoning, but advanced models with stronger internal reasoning may perform worse when forced through redundant reasoning steps. The best prompting strategy depends on the model, the metric being optimised, and the desired trade-off between correctness and maintainability.
+
+## What This Repository Contains
+
+- Translation scripts for direct prompting and CoT prompting.
+- CoT variant experiments, including structured summary, pseudocode, annotated code, and reflection prompts.
+- Evaluation scripts for syntax, functionality, semantic accuracy, readability, and coding style.
+- Analysis scripts for cross-model and cross-prompt comparison.
+- Result figures extracted from the MSc dissertation.
+
+## Methods
+
+### Dataset
+
+The project uses IBM's Project CodeNet dataset for Java-to-Python translation experiments.
+
+- Source language: Java
+- Target language: Python
+- Filtered dataset: accepted Java submissions only
+- Filtered pool: around 17,200 Java submissions across 242 problems
+- API model batch size: 164 files, inspired by the HumanEval task count
+- Local model batch size: 50 files due to local GPU and runtime constraints
+
+Python reference submissions were not used as the primary comparison target. The evaluation compares generated Python translations against the original Java source code and its observed behaviour.
+
+### Models Evaluated
+
+| Category | Models |
+| --- | --- |
+| Local models | Deepseek-Coder 6.7B-Instruct, CodeGemma 7B-IT |
+| API-based models | GPT-4.1-mini, GPT-4o-mini, Claude 3.5 Haiku, Claude 4 Sonnet |
+
+### Prompting Strategies
+
+| Strategy | Description |
+| --- | --- |
+| Direct | Translate Java source code directly into Python. |
+| Basic CoT | Generate a step-by-step explanation before translation. |
+| Structured Summary | Summarise input, output, data structures, and key logic before translation. |
+| Pseudocode | Convert Java logic into pseudocode before producing Python. |
+| Annotated Code | Add explanatory inline comments to Java before translation. |
+| Reflection | Translate with CoT, then ask the model to review and improve the translation. |
+
+### Evaluation Pipeline
+
+| Metric | Implementation |
+| --- | --- |
+| Syntactic correctness | Python `ast` parsing |
+| Functionality | Generated/cached test cases executed against Java and translated Python |
+| Semantic accuracy | LLM-based Java/Python logic comparison |
+| Readability | Radon Maintainability Index |
+| Style | Pylint score against Python style conventions |
+
+## Key Results
+
+### Direct vs CoT, Normalised Scores
+
+| Model | Syntax CoT | Syntax Direct | Functionality CoT | Functionality Direct | Semantic CoT | Semantic Direct |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Claude 3.5 Haiku | 1.00 | 1.00 | 0.85 | 0.80 | 1.00 | 1.00 |
+| Claude 4 Sonnet | 1.00 | 1.00 | 0.85 | 0.80 | 0.90 | 0.85 |
+| GPT-4.1-mini | 1.00 | 1.00 | 0.92 | 0.88 | 0.88 | 0.86 |
+| GPT-4o-mini | 1.00 | 1.00 | 0.89 | 0.89 | 0.89 | 0.78 |
+| Deepseek-Coder | 0.87 | 0.92 | 0.70 | 0.61 | 1.00 | 1.00 |
+| CodeGemma | 0.86 | 0.92 | 0.68 | 0.59 | 1.00 | 1.00 |
+
+| Model | Readability CoT | Readability Direct | Style CoT | Style Direct |
+| --- | ---: | ---: | ---: | ---: |
+| Claude 3.5 Haiku | 0.72 | 0.72 | 0.43 | 0.53 |
+| Claude 4 Sonnet | 0.65 | 0.65 | 0.52 | 0.60 |
+| GPT-4.1-mini | 0.70 | 0.71 | 0.44 | 0.52 |
+| GPT-4o-mini | 0.70 | 0.72 | 0.41 | 0.57 |
+| Deepseek-Coder | 0.62 | 0.58 | 0.79 | 0.85 |
+| CodeGemma | 0.61 | 0.57 | 0.78 | 0.84 |
+
+Main observations:
+
+- CoT improved functionality for most tested models, especially local models.
+- GPT-4o-mini showed a strong semantic accuracy gain under CoT while maintaining functionality.
+- CoT often reduced Pylint style scores, showing a trade-off between reasoning-driven translation and style compliance.
+- There is no single best prompting strategy across all models and all metrics.
+
+## Result Graphs
+
+### CoT Improvement Over Direct Prompting
+
+![Functionality improvement over direct prompting](assets/results/functionality_diff_pos_neg.png)
+
+![Semantic accuracy improvement over direct prompting](assets/results/semantic_accuracy_diff_pos_neg.png)
+
+Direct links:
+
+- [Functionality delta](assets/results/functionality_diff_pos_neg.png)
+- [Semantic accuracy delta](assets/results/semantic_accuracy_diff_pos_neg.png)
+- [Syntax delta](assets/results/syntax_diff_pos_neg.png)
+- [Readability delta](assets/results/readability_diff_pos_neg.png)
+- [Style delta](assets/results/style_diff_pos_neg.png)
+
+### CoT Variant Correlations
+
+Reflection and annotated-code prompting produced stronger inter-metric correlations, while pseudocode and structured-summary prompting produced looser, more flexible behaviour.
+
+![Correlation heatmaps for CoT variants](assets/results/cot_variant_correlation_heatmaps.png)
+
+### Readability vs Style Trade-off
+
+Across models and prompting strategies, readability and style showed a consistent negative relationship. This suggests that code translation quality should be evaluated across multiple dimensions rather than reduced to one score.
+
+![Readability vs style trade-off](assets/results/readability_style_tradeoff.png)
+
+## Repository Structure
+
+```text
+.
+|-- Deepseek-Coder_6.7B-Instruct/
+|-- gpt-4.1-mini/
+|-- gpt-4o-mini/
+|-- combine_models_results/
+|-- assets/results/
+|-- requirement.txt
+`-- README.md
+```
+
+Each model folder follows the same general workflow:
+
+```text
+batch_translation.py             # Selects Java files and runs translation
+translation.py                   # Defines direct and CoT translation prompts
+evaluate_syntax.py               # Checks Python syntax using ast
+evaluate_functionality.py        # Runs Java/Python behavioural tests
+evaluate_semantic.py             # Uses LLM judgment for semantic preservation
+evaluate_readability.py          # Computes Radon Maintainability Index
+evaluate_style.py                # Computes Pylint style score
+evaluate_summary.py              # Aggregates and plots normalised metrics
+```
+
+## Setup
+
+Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirement.txt
 ```
 
----
+For API-based models, create a `.env` file inside the relevant model folder:
 
-# 2. API Key Setup
-For API based models(gpt-4.1-mini, gpt-4o-mini, Claude_Haiku, Claude_Sonnet)
-
-Create `.env` file and placed in each model folder
-## `.env` file format:
-
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-
+```env
 OPENAI_API_KEY=your_openai_api_key_here
-
-# 3. Dataset Preparation
-
-- Download the dataset from [Project_CodeNet_Java250.tar.gz](https://dax-cdn.cdn.appdomain.cloud/dax-project-codenet/1.0.0/Project_CodeNet_Java250.tar.gz)
-- Ensure Project CodeNet Java source is placed at ``\codenet_project\Project_CodeNet_Java250``
-- Place it in the project directory before running translation scripts.
-
----
-
-# 4. Directory Structure
-
-### For API-Based Models(gpt-4.1-mini, gpt-4o-mini, Claude_Haiku, Claude_Sonnet)
-
-Running the translation script **once** generates outputs for all prompt types and CoT variants in the `batch_translation` subfolder:
-
-- `Direct`
-- `CoT`
-- `CoT_variant_annotated`
-- `CoT_variant_pseudocode`
-- `CoT_variant_reflection`
-- `CoT_variant_structured_summary`
-
-> **Note:**  
-> - **The translation scripts generate all variants in one script**  
-> - **Evaluation scripts must be run separately for each variant.**
-
-### For Local Models(Deepseek-Coder_6.7B-Instruct,CodeGemma)
-
-Local models only translate the two basic prompt strategies:
-
-- `Direct`
-- `CoT`
-
----
-
-# 5. Usage Order
-
-Below is the **step-by-step order** for using these scripts.
-
-### 1️. Translation Step (batch translation for all strategies)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
-python batch_translate.py
-```
-- Generates translations for:
-	- Direct
-	- Basic CoT
-	- All CoT variants
-- Each is saved in its subfolder under `batch_translation`.
 
-### 2️. Evaluation and Analysis Step(Direct and Basic CoT)
+Download Project CodeNet Java data and place it at:
+
+```text
+../codenet_project/Project_CodeNet_Java250
 ```
+
+The scripts expect Project CodeNet problem descriptions and metadata to be available locally for test-case generation and evaluation.
+
+## Usage
+
+Run translation for a model folder:
+
+```bash
+python batch_translation.py
+```
+
+Run the evaluation stages:
+
+```bash
 python evaluate_syntax.py
 python evaluate_functionality.py
 python evaluate_semantic.py
 python evaluate_readability.py
 python evaluate_style.py
-```
-- Functionality evaluation will look up test cases in the `test_cases` subfolder and run `generate_testcase.py` if missing.
-
-- Evaluation results are saved in `batch_translation` as:
-```
-syntax_results.csv
-functionality_results.csv
-semantic_accuracy_results.csv
-readability_results.csv
-style_pylint_results.csv
-```
-
-- Combine evaluation results:
-```
 python evaluate_summary.py
 ```
 
-- Analysis results saved as:
-```
-evaluation_comparison_plot_normalized.png
-evaluation_summary.csv
+For CoT variants, run the corresponding variant scripts such as:
+
+```bash
+python batch_translation_CoT_annotated.py
+python evaluate_functionality_CoT_annotated.py
+python evaluate_summary_CoT_annotated.py
 ```
 
-### 3️. Evaluation and Analysis Step( for CoT variants)
-- Run separately for each CoT variant:
-```
-python evaluate_syntax_[variants].py
-python evaluate_functionality_[variants].py
-python evaluate_semantic_[variants].py
-python evaluate_readability_[variants].py
-python evaluate_style_[variants].py
-```
+Combine cross-strategy results where supported:
 
-- Evaluation results are saved as:
-```
-syntax_results_[variants].csv
-functionality_results_[variants].csv
-semantic_accuracy_results_[variants].csv
-readability_results_[variants].csv
-style_pylint_results_[variants].csv
-```
-
-- Combine evaluation results:
-```
-python evaluate_summary_[CoT variants].py
-```
-
-- Analysis results are saved in the subfolder `batch_translation` as
-```
-evaluation_comparison_plot_normalized_[CoT variants].png
-evaluation_summary_[CoT variants].csv
-```
-
-### 4️. Results Combination:
-```
+```bash
 python combine_results_CoT_variants.py
 ```
-- Merges all evaluation summary for cross-strategy comparison.
-- Outputs:
-```
-evaluation_summary_combined_plot.png
-evaluation_summary_combined.csv
-```
 
-> **Note:** 
-> - For Local Models (Deepseek-Coder, CodeGemma), no CoT variants or combination step is needed.
+## Limitations
 
----
+- The full filtered CodeNet set was not evaluated because of API cost and local hardware limits.
+- Semantic accuracy is judged by an LLM rather than by manual expert review.
+- Model scale, alignment method, and prompting behaviour are not fully isolated variables.
+- Generated test cases improve coverage but are not a substitute for official benchmark tests.
 
-# 6. Script Descriptions
+## Skills Demonstrated
 
-- `batch_translate.py`: 
-	Randomly selects a batch of valid Java source code and calls `run_translation(java_path, out_direct, out_cot)` in `translation.py`.
-
-- `translation.py`:
-	Generates translation from Java source code saved in subfolders.
-
-- `evaluate_syntax.py`:
-	Evaluates the syntactic correctness of translated code
-
-- evaluate_functionality.py:
-	Test functionality using test cases. Runs `generate_testcase.py` if test cases are missing.
-
-- `generate_testcase.py`:
-	Generates test inputs based on problem descriptions in the dataset metadata.
-
-- `evaluate_semantic.py`:
-	Compares Java and translates Python code using LLM-based semantic judgment.
-
-- `evaluate_readability.py`:
-	Uses the `radon` library to calculate the `Maintainability Index`.
-
-- `evaluate_style.py`:
-	Uses `pylint` to rate code style according to PEP8.
-
-- `evaluate_summary.py`
-	Combines all evaluation results to compare direct and Basic CoT prompts.
-	> Note: for CoT variants, `evaluate_summary.py` only combines results for that variant.
-
-- `combine_results_CoT_variants.py`:
-	Combines all variant summary and Basis CoT summary for cross-strategy analysis.
+- LLM evaluation and prompt engineering
+- Java-to-Python code translation workflows
+- Automated code-quality evaluation
+- Test-case generation and behavioural validation
+- Python data processing and visual analysis
+- Local model experimentation and API-based model comparison
